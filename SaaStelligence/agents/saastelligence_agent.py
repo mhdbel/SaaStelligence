@@ -1,102 +1,179 @@
-# agents/saastelligence_agent.py
+# SaaStelligence/agents/saastelligence_agent.py
+"""
+Core of the SAAStelligence autonomous agent.
 
-from langchain import LLMChain
-from langchain.llms import OpenAI
-from langchain.prompts import PromptTemplate
+This module defines the SAAStelligenceAgent class, which orchestrates various
+components to process user queries, generate ads, route to funnels, adjust bids,
+manage retargeting, and score user behavior.
+"""
 import pandas as pd
-import numpy as np
-from tensorflow.keras.models import load_model
-import requests
 import os
 from dotenv import load_dotenv
-from config.config import CONFIG
 
-load_dotenv()
+from SaaStelligence.components.intent_detector import IntentDetector
+from SaaStelligence.components.ad_generator import AdGenerator
+from SaaStelligence.components.funnel_router import FunnelRouter
+from SaaStelligence.components.bid_adjuster import BidAdjuster
+from SaaStelligence.components.retargeting_manager import RetargetingManager
+from SaaStelligence.components.behavioral_scorer import BehavioralScorer
 
-# Load pre-trained intent detection model
-intent_model = load_model(CONFIG.INTENT_MODEL_PATH)
-
-# Define ad generation prompt template
-ad_prompt_template = PromptTemplate.from_template(
-    """
-    Based on this intent: {intent}, generate a high-conversion ad copy for SaaS lead gen.
-    Make it emotionally engaging, include urgency or scarcity where appropriate.
-    Output only the ad text.
-    """
-)
-ad_chain = LLMChain(llm=OpenAI(openai_api_key=CONFIG.OPENAI_API_KEY, temperature=0.7), prompt=ad_prompt_template)
+load_dotenv() # Load environment variables from .env file
 
 class SAAStelligenceAgent:
+    """
+    The main SAAStelligence agent class.
+
+    Coordinates various specialized components to handle tasks related to
+    SaaS lead generation, such as intent detection, ad generation,
+    funnel routing, bid adjustment, retargeting, and behavioral scoring.
+    """
     def __init__(self):
-        self.intent_mapping = {
-            'workflow_automation': 0,
-            'sales_team_efficiency': 1,
-            'project_management': 2,
-            'customer_support': 3,
-            'marketing_automation': 4
-        }
+        """
+        Initializes the SAAStelligenceAgent and its components.
 
-    def detect_intent(self, query):
-        encoded = pd.Series([query]).apply(lambda x: x.lower())
-        return list(self.intent_mapping.keys())[np.argmax(intent_model.predict(encoded))]
+        Each component is responsible for a specific part of the agent's
+        functionality.
+        """
+        self.intent_detector = IntentDetector()
+        self.ad_generator = AdGenerator()
+        self.funnel_router = FunnelRouter()
+        self.bid_adjuster = BidAdjuster()
+        self.retargeting_manager = RetargetingManager()
+        self.behavioral_scorer = BehavioralScorer()
 
-    def generate_ad(self, intent):
-        return ad_chain.run(intent=intent)
+    def train_from_feedback(self, conversion_data: list[dict]):
+        """
+        Placeholder for training or fine-tuning models based on feedback.
 
-    def route_to_funnel(self, intent):
-        funnel_map = {
-            'workflow_automation': 'funnel_a',
-            'sales_team_efficiency': 'funnel_b',
-            'project_management': 'funnel_c',
-            'customer_support': 'funnel_d',
-            'marketing_automation': 'funnel_e'
-        }
-        return funnel_map.get(intent, 'default_funnel')
+        In a real implementation, this method would process conversion data
+        (or other forms of feedback) to update machine learning models,
+        adjust strategies, or log data for offline training.
 
-    def adjust_bid(self, predicted_cvr, cpa_budget):
-        base_bid = 10.0
-        if predicted_cvr > 0.05:
-            return base_bid * 1.2
-        elif predicted_cvr < 0.02:
-            return base_bid * 0.8
-        else:
-            return base_bid
-
-    def retarget_user(self, user_id, last_action):
-        if last_action == 'email_submitted':
-            return f"https://ads.example.com/retarget/email?uid={user_id}"
-        elif last_action == 'form_abandoned':
-            return f"https://ads.example.com/retarget/form?uid={user_id}"
-        else:
-            return None
-
-    def train_from_feedback(self, conversion_data):
+        Args:
+            conversion_data: A list of dictionaries, where each dictionary
+                             represents a feedback event (e.g., a conversion).
+                             The structure of these dictionaries would depend on
+                             the specific data being collected.
+        """
+        # Example: Convert feedback data to a pandas DataFrame for processing
         df = pd.DataFrame(conversion_data)
-        X = df[['intent', 'predicted_cvr']]
-        y = df['converted']
-        # In production, use model.fit(X, y) 
-        print("Training model with new feedback...")
+        # In a production system, this data would be used to:
+        # - Retrain the intent detection model
+        # - Fine-tune ad generation prompts or models
+        # - Adjust bidding strategies or CVR predictions
+        # - Update A/B testing configurations or analyze results
+        print("SAAStelligenceAgent: Received feedback data. Training model with new feedback (simulated)...")
+        # For now, this method is a placeholder.
+        # Example: if df contains 'intent' and 'predicted_cvr', it might be used for the BidAdjuster model.
+        # X = df[['intent', 'predicted_cvr']]
+        # y = df['converted']
+        # self.bid_adjuster.train_model(X,y) # If BidAdjuster had such a method
 
-    def report_performance(self):
+    def report_performance(self) -> dict:
+        """
+        Placeholder for generating a performance report.
+
+        This method would typically gather key metrics from various components
+        or a centralized analytics store to provide a summary of the agent's
+        performance.
+
+        Returns:
+            A dictionary containing key performance indicators (KPIs).
+            Currently returns static example data.
+        """
+        # In a real system, metrics would be dynamically fetched or calculated.
+        # Example:
+        # ctr = self.ad_generator.get_ctr()
+        # cvr = self.funnel_router.get_conversion_rate()
+        # cpa = self.bid_adjuster.get_average_cpa()
+        # leads = self.analytics_store.get_total_leads()
         metrics = {
-            'CTR': 0.028,
-            'CVR': 0.067,
-            'CPA': 28.00,
-            'Leads': 3500
+            'CTR': 0.028,  # Click-Through Rate
+            'CVR': 0.067,  # Conversion Rate
+            'CPA': 28.00,  # Cost Per Acquisition
+            'Leads': 3500  # Total leads generated
         }
-        print("Performance Summary:", metrics)
+        print("SAAStelligenceAgent: Performance Summary:", metrics)
         return metrics
 
-    def run(self, user_query, user_id=None, last_action=None):
-        intent = self.detect_intent(user_query)
-        ad_copy = self.generate_ad(intent)
-        funnel = self.route_to_funnel(intent)
-        bid = self.adjust_bid(predicted_cvr=0.05, cpa_budget=45)
-        retarget_url = self.retarget_user(user_id, last_action) if user_id else None
+    def run(self, user_query: str, user_id: str = None, last_action: str = None) -> dict:
+        """
+        Processes a user query and executes the agent's decision-making logic.
+
+        This is the main operational method of the agent. It involves:
+        1. Detecting user intent.
+        2. Generating ad copy (potentially A/B testing different templates).
+        3. Routing to a funnel (potentially A/B testing different funnels).
+        4. Adjusting bids.
+        5. Determining retargeting tasks.
+        6. Tracking user actions for behavioral scoring.
+
+        Args:
+            user_query: The query string from the user.
+            user_id: Optional unique identifier for the user.
+            last_action: Optional string representing the last significant action
+                         taken by the user, used for retargeting and behavioral scoring.
+
+        Returns:
+            A dictionary containing the results of the agent's processing,
+            including detected intent, generated ad copy, chosen funnel, bid,
+            retargeting tasks, and behavioral score.
+        """
+        # 1. Detect intent
+        intent = self.intent_detector.detect_intent(user_query)
+
+        # 2. Generate ad copy (components handle A/B selection internally if not specified)
+        ad_generation_result = self.ad_generator.generate_ad(intent=intent)
+        ad_copy = ad_generation_result["ad_copy"]
+        ad_template_index_chosen = ad_generation_result["template_index_chosen"]
+
+        # 3. Route to funnel (components handle A/B selection internally)
+        funnel_routing_result = self.funnel_router.route_to_funnel(intent=intent)
+        funnel = funnel_routing_result["funnel_name"]
+        funnel_variant_index_chosen = funnel_routing_result["funnel_variant_index_chosen"]
+
+        # 4. Adjust bid (using example CVR and budget for now)
+        # In a real scenario, predicted_cvr might come from another component or historical data.
+        bid = self.bid_adjuster.adjust_bid(predicted_cvr=0.05, cpa_budget=45)
+
+        # 5. Determine retargeting tasks
+        retargeting_tasks_list = []
+        if user_id and last_action:
+            retargeting_tasks_list = self.retargeting_manager.retarget_user(user_id, last_action)
+
+        # 6. Behavioral scoring
+        current_behavioral_score = 0 # Default score if no user_id
+        if user_id:
+            # Determine action type for scoring based on intent (simplified)
+            action_to_track_query = 'processed_query_low_intent' # Default
+            if intent == 'sales_team_efficiency':
+                action_to_track_query = 'processed_query_high_intent'
+            elif intent == 'workflow_automation':
+                action_to_track_query = 'processed_query_medium_intent'
+
+            self.behavioral_scorer.track_action(
+                user_id,
+                action_to_track_query,
+                details={'intent': intent, 'query': user_query}
+            )
+
+            # Track the `last_action` from parameters as a separate behavioral event if present
+            if last_action:
+                 self.behavioral_scorer.track_action(
+                     user_id,
+                     last_action,
+                     details={'source': 'run_method_last_action_parameter'}
+                 )
+            current_behavioral_score = self.behavioral_scorer.get_score(user_id)
+
+        # Consolidate results
         return {
             'intent': intent,
             'ad_copy': ad_copy,
+            'ad_template_index_chosen': ad_template_index_chosen,
             'funnel': funnel,
+            'funnel_variant_index_chosen': funnel_variant_index_chosen,
             'bid': bid,
-            'retarget_url': retarget_url
+            'retargeting_tasks': retargeting_tasks_list,
+            'behavioral_score': current_behavioral_score
         }
