@@ -1,0 +1,6 @@
+query_text,intent,converted,clicks,impressions,cost
+"Automate my team's workflow","workflow_automation",1,40,1200,360.0
+"Need help scaling customer support","customer_support",0,25,900,220.0
+"Improve sales follow-up process","sales_team_efficiency",1,35,1000,310.0
+"Project tracking tools","project_management",0,15,600,150.0
+"Automate marketing emails","marketing_automation",1,30,950,275.0
