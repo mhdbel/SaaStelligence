@@ -1,15 +1,13 @@
 # models/train_intent_model.py
 
-import json
-from pathlib import Path
-from typing import Iterable, Optional, Tuple
+from __future__ import annotations
 
-import numpy as np
-import pandas as pd
-from tensorflow.keras.layers import Dense, Embedding, GlobalAveragePooling1D
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.preprocessing.sequence import pad_sequences
-from tensorflow.keras.preprocessing.text import Tokenizer
+import csv
+import json
+import math
+from collections import Counter, defaultdict
+from pathlib import Path
+from typing import Dict, Iterable, List, Optional, Sequence
 
 # Define intent categories
 INTENT_CATEGORIES = [
@@ -21,16 +19,17 @@ INTENT_CATEGORIES = [
 ]
 
 REQUIRED_DATA_COLUMNS = {"query_text", "intent", "converted"}
-MAX_SEQUENCE_LENGTH = 20
-VOCABULARY_SIZE = 5000
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_DATA_PATH = BASE_DIR / "data" / "conversions.csv"
-DEFAULT_MODEL_PATH = BASE_DIR / "models" / "intent_classifier.h5"
-DEFAULT_TOKENIZER_PATH = BASE_DIR / "models" / "tokenizer.json"
+DEFAULT_MODEL_PATH = BASE_DIR / "models" / "intent_classifier.json"
 
 
-def load_data(path: Optional[Path] = None) -> pd.DataFrame:
+def _tokenize(text: str) -> List[str]:
+    return [token for token in text.lower().split() if token]
+
+
+def load_data(path: Optional[Path] = None) -> List[Dict[str, str]]:
     """Load the canonical conversions dataset and validate its schema."""
 
     dataset_path = Path(path) if path else DEFAULT_DATA_PATH
@@ -40,121 +39,151 @@ def load_data(path: Optional[Path] = None) -> pd.DataFrame:
             f"{sorted(REQUIRED_DATA_COLUMNS)}."
         )
 
-    df = pd.read_csv(dataset_path)
-    missing = REQUIRED_DATA_COLUMNS - set(df.columns)
-    if missing:
-        raise ValueError(
-            f"Dataset at {dataset_path} is missing required columns: {sorted(missing)}."
-        )
-
-    df = df.dropna(subset=["query_text", "intent"]).copy()
-    df["query_text"] = df["query_text"].astype(str)
-    df["intent"] = df["intent"].astype(str)
-    df["converted"] = df["converted"].astype(int)
-    return df
+    with dataset_path.open("r", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        missing = REQUIRED_DATA_COLUMNS - set(reader.fieldnames or [])
+        if missing:
+            raise ValueError(
+                f"Dataset at {dataset_path} is missing required columns: {sorted(missing)}."
+            )
+        records = [row for row in reader if row.get("query_text") and row.get("intent")]
+    return records
 
 
-def preprocess_text(
-    texts: Iterable[str],
-    max_length: int = MAX_SEQUENCE_LENGTH,
-    num_words: int = VOCABULARY_SIZE,
-) -> Tuple[np.ndarray, Tokenizer, int]:
-    """Fit a tokenizer on the provided texts and return padded sequences."""
-
-    tokenizer = Tokenizer(num_words=num_words, oov_token="<OOV>")
-    tokenizer.fit_on_texts(texts)
-    sequences = tokenizer.texts_to_sequences(texts)
-    padded = pad_sequences(
-        sequences,
-        maxlen=max_length,
-        padding="post",
-        truncating="post",
-    )
-    vocab_size = min(num_words, len(tokenizer.word_index) + 1)
-    return padded, tokenizer, vocab_size
-
-
-def map_intents_to_labels(intents: Iterable[str]) -> np.ndarray:
+def map_intents_to_labels(intents: Iterable[str]) -> List[int]:
     """Convert string intents to numeric class indices."""
 
     intent_to_label = {intent: idx for idx, intent in enumerate(INTENT_CATEGORIES)}
-    try:
-        labels = [intent_to_label[i] for i in intents]
-    except KeyError as exc:
-        raise ValueError(
-            f"Encountered unknown intent '{exc.args[0]}'. Valid intents: {INTENT_CATEGORIES}"
-        ) from exc
-    return np.array(labels, dtype=np.int64)
+    labels: List[int] = []
+    for intent in intents:
+        if intent not in intent_to_label:
+            raise ValueError(
+                f"Encountered unknown intent '{intent}'. Valid intents: {INTENT_CATEGORIES}"
+            )
+        labels.append(intent_to_label[intent])
+    return labels
 
 
-def build_and_train_model(
-    X: np.ndarray,
-    y: np.ndarray,
-    vocab_size: int,
-    max_length: int = MAX_SEQUENCE_LENGTH,
-) -> Sequential:
-    """Construct and fit the intent classification model."""
+class NaiveBayesIntentClassifier:
+    """Simple multinomial Naive Bayes classifier for intent detection."""
 
-    model = Sequential(
-        [
-            Embedding(input_dim=vocab_size, output_dim=16, input_length=max_length),
-            GlobalAveragePooling1D(),
-            Dense(24, activation="relu"),
-            Dense(len(INTENT_CATEGORIES), activation="softmax"),
-        ]
-    )
+    def __init__(self, alpha: float = 1.0) -> None:
+        self.alpha = alpha
+        self.label_word_counts: Dict[int, Counter[str]] = defaultdict(Counter)
+        self.label_counts: Counter[int] = Counter()
+        self.total_words: Counter[int] = Counter()
+        self.vocabulary: set[str] = set()
 
-    model.compile(
-        loss="sparse_categorical_crossentropy",
-        optimizer="adam",
-        metrics=["accuracy"],
-    )
+    def fit(self, texts: Sequence[str], labels: Sequence[int]) -> None:
+        for text, label in zip(texts, labels):
+            tokens = _tokenize(text)
+            if not tokens:
+                continue
+            self.label_counts[label] += 1
+            for token in tokens:
+                self.label_word_counts[label][token] += 1
+                self.total_words[label] += 1
+                self.vocabulary.add(token)
+        # Ensure every label is represented to avoid zero-prior collapse.
+        for label in range(len(INTENT_CATEGORIES)):
+            self.label_counts[label] += 0
+            self.total_words[label] += 0
 
-    model.fit(X, y, epochs=10, validation_split=0.2, verbose=0)
-    return model
+    def predict_proba(self, text: str) -> List[float]:
+        tokens = _tokenize(text)
+        if not tokens:
+            # Return uniform distribution if no signal is present.
+            return [1.0 / len(INTENT_CATEGORIES)] * len(INTENT_CATEGORIES)
+
+        total_documents = sum(self.label_counts.values())
+        vocab_size = max(len(self.vocabulary), 1)
+        log_probabilities: List[float] = []
+
+        for label in range(len(INTENT_CATEGORIES)):
+            prior_numerator = self.label_counts[label] + self.alpha
+            prior_denominator = total_documents + self.alpha * len(INTENT_CATEGORIES)
+            log_prob = math.log(prior_numerator / prior_denominator)
+
+            for token in tokens:
+                token_count = self.label_word_counts[label][token]
+                word_numerator = token_count + self.alpha
+                word_denominator = self.total_words[label] + self.alpha * vocab_size
+                log_prob += math.log(word_numerator / word_denominator)
+
+            log_probabilities.append(log_prob)
+
+        max_log = max(log_probabilities)
+        exp_probs = [math.exp(log_prob - max_log) for log_prob in log_probabilities]
+        total = sum(exp_probs) or 1.0
+        return [prob / total for prob in exp_probs]
+
+    def predict(self, text: str) -> int:
+        probabilities = self.predict_proba(text)
+        return max(range(len(probabilities)), key=lambda idx: probabilities[idx])
+
+    # ------------------------------------------------------------------
+    # Persistence helpers
+    # ------------------------------------------------------------------
+    def to_dict(self) -> Dict[str, object]:
+        return {
+            "alpha": self.alpha,
+            "label_counts": dict(self.label_counts),
+            "total_words": dict(self.total_words),
+            "label_word_counts": {
+                str(label): dict(counter) for label, counter in self.label_word_counts.items()
+            },
+            "vocabulary": sorted(self.vocabulary),
+        }
+
+    @classmethod
+    def from_dict(cls, payload: Dict[str, object]) -> "NaiveBayesIntentClassifier":
+        classifier = cls(alpha=float(payload.get("alpha", 1.0)))
+        classifier.label_counts = Counter({int(k): int(v) for k, v in payload.get("label_counts", {}).items()})
+        classifier.total_words = Counter({int(k): int(v) for k, v in payload.get("total_words", {}).items()})
+        classifier.label_word_counts = defaultdict(
+            Counter,
+            {
+                int(label): Counter({token: int(count) for token, count in counter.items()})
+                for label, counter in payload.get("label_word_counts", {}).items()
+            },
+        )
+        classifier.vocabulary = set(payload.get("vocabulary", []))
+        return classifier
 
 
-def save_artifacts(
-    model: Sequential,
-    tokenizer: Tokenizer,
-    model_path: Optional[Path] = None,
-    tokenizer_path: Optional[Path] = None,
-    max_length: int = MAX_SEQUENCE_LENGTH,
-) -> None:
-    """Persist the trained model and tokenizer to disk."""
+def build_and_train_model(texts: Iterable[str], labels: Sequence[int]) -> NaiveBayesIntentClassifier:
+    classifier = NaiveBayesIntentClassifier()
+    classifier.fit(list(texts), list(labels))
+    return classifier
 
-    model_destination = Path(model_path) if model_path else DEFAULT_MODEL_PATH
-    tokenizer_destination = (
-        Path(tokenizer_path) if tokenizer_path else DEFAULT_TOKENIZER_PATH
-    )
-    model_destination.parent.mkdir(parents=True, exist_ok=True)
-    tokenizer_destination.parent.mkdir(parents=True, exist_ok=True)
 
-    model.save(model_destination)
-    artifact = {
-        "tokenizer_config": tokenizer.to_json(),
-        "max_sequence_length": max_length,
-    }
-    with open(tokenizer_destination, "w", encoding="utf-8") as file:
-        json.dump(artifact, file)
+def save_model(model: NaiveBayesIntentClassifier, model_path: Optional[Path] = None) -> Path:
+    destination = Path(model_path) if model_path else DEFAULT_MODEL_PATH
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with destination.open("w", encoding="utf-8") as handle:
+        json.dump(model.to_dict(), handle)
+    return destination
+
+
+def load_model(model_path: Optional[Path] = None) -> NaiveBayesIntentClassifier:
+    path = Path(model_path) if model_path else DEFAULT_MODEL_PATH
+    with path.open("r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    return NaiveBayesIntentClassifier.from_dict(payload)
 
 
 def train_intent_classifier(
-    dataframe: Optional[pd.DataFrame] = None,
+    records: Optional[List[Dict[str, str]]] = None,
     model_path: Optional[Path] = None,
-    tokenizer_path: Optional[Path] = None,
-) -> Tuple[Sequential, Tokenizer]:
-    """Train the intent classifier using the provided dataframe or the default dataset."""
-
-    df = dataframe if dataframe is not None else load_data()
-    texts = df["query_text"].astype(str).tolist()
-    labels = map_intents_to_labels(df["intent"].tolist())
-    sequences, tokenizer, vocab_size = preprocess_text(texts)
-    model = build_and_train_model(sequences, labels, vocab_size)
-    save_artifacts(model, tokenizer, model_path, tokenizer_path)
-    return model, tokenizer
+) -> NaiveBayesIntentClassifier:
+    dataset = records if records is not None else load_data()
+    texts = [record["query_text"] for record in dataset]
+    labels = map_intents_to_labels(record["intent"] for record in dataset)
+    model = build_and_train_model(texts, labels)
+    save_model(model, model_path=model_path)
+    return model
 
 
 if __name__ == "__main__":
     train_intent_classifier()
-    print("✅ Model and tokenizer saved to the 'models/' directory.")
+    print("✅ Model saved to the 'models/' directory.")
