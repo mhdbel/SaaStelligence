@@ -1,6 +1,6 @@
 # main.py
 
-from agents.saastelligence_agent import SAAStelligenceAgent
+from SaaStelligence.agents.saastelligence_agent import SAAStelligenceAgent
 
 if __name__ == "__main__":
     agent = SAAStelligenceAgent()

@@ -1,7 +1,7 @@
 # web/app.py
 
 from fastapi import FastAPI
-from agents.saastelligence_agent import SAAStelligenceAgent
+from SaaStelligence.agents.saastelligence_agent import SAAStelligenceAgent
 
 app = FastAPI()
 agent = SAAStelligenceAgent()
