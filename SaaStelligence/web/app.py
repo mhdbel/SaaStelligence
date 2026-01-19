@@ -185,9 +185,7 @@ app = FastAPI(
 
 # ============== MIDDLEWARE ==============
 # CORS Configuration
-allowed_origins = getattr(CONFIG, 'ALLOWED_ORIGINS', ["*"])
-if isinstance(allowed_origins, str):
-    allowed_origins = [origin.strip() for origin in allowed_origins.split(",")]
+allowed_origins = CONFIG.allowed_origins_list
 
 app.add_middleware(
     CORSMiddleware,
@@ -668,3 +666,4 @@ if __name__ == "__main__":
         log_level=getattr(CONFIG, 'LOG_LEVEL', "info").lower(),
         access_log=True,
     )
+
