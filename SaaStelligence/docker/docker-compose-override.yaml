@@ -1,0 +1,38 @@
+# Development overrides - automatically loaded with docker-compose.yml
+version: '3.8'
+
+services:
+  api:
+    build:
+      target: production  # Can use 'builder' for dev with more tools
+    
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+      - WORKERS=1
+    
+    volumes:
+      # Mount source code for hot reload
+      - ./config:/app/config:ro
+      - ./agents:/app/agents:ro
+      - ./models:/app/models
+      - ./utils:/app/utils:ro
+      - ./web:/app/web:ro
+      - ./main.py:/app/main.py:ro
+      - ./data:/app/data
+    
+    # Override command for development with reload
+    command: >
+      uvicorn web.app:app 
+      --host 0.0.0.0 
+      --port 8000 
+      --reload 
+      --reload-dir /app
+    
+    # Remove resource limits for development
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
