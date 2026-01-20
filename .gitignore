@@ -1,6 +1,273 @@
-# gitignore template for LangChain products, e.g., LangGraph, LangSmith
-# website: https://www.langchain.com/
-# website: https://www.langchain.com/langgraph
+# ============== LANGCHAIN / LANGGRAPH ==============
+# LangChain products (LangGraph, LangSmith)
+# https://www.langchain.com/
 
-# LangGraph
 .langgraph_api/
+.langsmith/
+langsmith_traces/
+
+# ============== PYTHON ==============
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+junit.xml
+test-results/
+
+# Translations
+*.mo
+*.pot
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+.pybuilder/
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# PEP 582
+__pypackages__/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath
+*.sage.py
+
+# Cython debug symbols
+cython_debug/
+
+# ============== VIRTUAL ENVIRONMENTS ==============
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.python-version
+Pipfile.lock
+
+# ============== IDE / EDITORS ==============
+# VSCode
+.vscode/
+*.code-workspace
+
+# PyCharm / JetBrains
+.idea/
+*.iml
+*.iws
+*.ipr
+.idea_modules/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+.vim/
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# Spyder
+.spyderproject
+.spyproject
+
+# Rope
+.ropeproject
+
+# ============== OS FILES ==============
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ============== ENVIRONMENT & SECRETS ==============
+.env
+.env.*
+!.env.example
+!.env.template
+*.env
+
+# API Keys and secrets
+.secrets/
+secrets.yaml
+secrets.json
+*.pem
+*.key
+*.crt
+
+# Google credentials
+*credentials*.json
+*service_account*.json
+token.json
+token.pickle
+
+# AWS
+.aws/
+
+# ============== PROJECT SPECIFIC ==============
+# Model files (large binaries)
+*.pkl
+*.pickle
+*.joblib
+*.h5
+*.hdf5
+*.onnx
+*.pt
+*.pth
+models/*.bin
+!models/.gitkeep
+
+# Data files
+*.csv
+*.parquet
+*.feather
+data/*.json
+!data/sample*.json
+!data/.gitkeep
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# Performance/profiling
+*.prof
+*.lprof
+*.cachegrind
+
+# ============== DOCKER ==============
+.docker/
+docker-compose.override.yml
+*.dockerignore
+
+# ============== DATABASE ==============
+*.db
+*.sqlite
+*.sqlite3
+
+# ============== MISC ==============
+# Mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Ruff
+.ruff_cache/
+
+# Pre-commit
+.pre-commit-cache/
+
+# Local configuration
+local_settings.py
+local_config.py
+config.local.yaml
+
+# Terraform (if used)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+
+# Node (if used for frontend)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# ============== BACKUP FILES ==============
+*.bak
+*.backup
+*~
+*.orig
